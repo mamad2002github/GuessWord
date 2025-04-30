@@ -38,29 +38,24 @@ class Game(models.Model):
     ]
 
     word = models.ForeignKey(Word, on_delete=models.PROTECT, related_name='games',)
-
     player_1 = models.ForeignKey(User, on_delete=models.CASCADE, related_name='games_as_player1',)
     player_2 = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, related_name='games_as_player2', )
-
     current_display_word = models.CharField(max_length=50, default="", blank=True, )
     guessed_letters = models.CharField(max_length=50, default="", blank=True,)
     current_turn = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='games_turn', )
-
     player1_score = models.IntegerField(default=0,)
     player2_score = models.IntegerField(default=0, )
-
     time_limit_seconds = models.PositiveIntegerField(default=600, )
     start_time = models.DateTimeField(auto_now_add=True, )
     last_active_time = models.DateTimeField(default=timezone.now,)
     time_elapsed_before_pause = models.PositiveIntegerField(default=0,)
-
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='waiting',)
     winner = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='games_won', )
     is_draw = models.BooleanField(default=False,)
 
     def initialize_game(self):
         self.current_display_word = "_" * len(self.word.text)
-        if self.word.DIFFICULTY_CHOICES == 'easy':
+        if self.word.difficulty == 'easy':
             self.time_limit_seconds = 10 * 60
         elif self.word.difficulty == 'medium':
             self.time_limit_seconds = 7 * 60
