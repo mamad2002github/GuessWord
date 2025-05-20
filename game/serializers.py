@@ -36,13 +36,13 @@ class GameSerializer(serializers.ModelSerializer):
     remaining_time = serializers.SerializerMethodField(read_only=True)
     current_turn_username = serializers.CharField(source='current_turn.username', read_only=True, allow_null=True)
     winner_username = serializers.CharField(source='winner.username', read_only=True, allow_null=True)
-    difficulty = serializers.ChoiceField(choices=Word.DIFFICULTY_CHOICES, required=False, write_only=True)
+    difficulty_request = serializers.ChoiceField(choices=Word.DIFFICULTY_CHOICES, required=False, write_only=True)
     letter = serializers.CharField(max_length=1, required=False, write_only=True)
 
     class Meta:
         model = Game
         fields = [
-            'id', 'player_1', 'player_2', 'word', 'difficulty', 'difficulty_display',
+            'id', 'player_1', 'player_2', 'word', 'difficulty_request', 'difficulty_display',
             'current_display_word', 'guessed_letters', 'current_turn', 'current_turn_username',
             'player1_score', 'player2_score', 'start_time', 'time_limit_seconds', 'remaining_time',
             'status', 'status_display', 'winner', 'winner_username', 'is_draw',

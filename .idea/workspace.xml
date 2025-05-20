@@ -4,10 +4,11 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="fac635cb-bbab-4629-87dc-b9a6e0a38b05" name="Changes" comment="update the model">
+    <list default="true" id="fac635cb-bbab-4629-87dc-b9a6e0a38b05" name="Changes" comment="the backend code of project">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/GuessWord/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/GuessWord/urls.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/db.sqlite3" beforeDir="false" afterPath="$PROJECT_DIR$/db.sqlite3" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/game/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/game/models.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/game/serializers.py" beforeDir="false" afterPath="$PROJECT_DIR$/game/serializers.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/game/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/game/views.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -104,7 +105,9 @@
       <workItem from="1745856670806" duration="10593000" />
       <workItem from="1745922376555" duration="16064000" />
       <workItem from="1746004701905" duration="6655000" />
-      <workItem from="1746035172701" duration="1776000" />
+      <workItem from="1746035172701" duration="3453000" />
+      <workItem from="1746265732904" duration="25000" />
+      <workItem from="1747760612917" duration="3996000" />
     </task>
     <task id="LOCAL-00001" summary="create project">
       <option name="closed" value="true" />
@@ -130,7 +133,15 @@
       <option name="project" value="LOCAL" />
       <updated>1745876646402</updated>
     </task>
-    <option name="localTasksCounter" value="4" />
+    <task id="LOCAL-00004" summary="the backend code of project">
+      <option name="closed" value="true" />
+      <created>1746037056421</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1746037056421</updated>
+    </task>
+    <option name="localTasksCounter" value="5" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -140,6 +151,7 @@
     <MESSAGE value="create project" />
     <MESSAGE value="create models of guess game" />
     <MESSAGE value="update the model" />
-    <option name="LAST_COMMIT_MESSAGE" value="update the model" />
+    <MESSAGE value="the backend code of project" />
+    <option name="LAST_COMMIT_MESSAGE" value="the backend code of project" />
   </component>
 </project>

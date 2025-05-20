@@ -98,6 +98,8 @@ class GameHistory(models.Model):
     score_in_game = models.IntegerField()
     result = models.CharField(max_length=10, choices=RESULT_CHOICES,)
     completion_date = models.DateTimeField(default=timezone.now,)
+    difficulty = models.CharField(max_length=10, choices=Word.DIFFICULTY_CHOICES, default='easy', null=True, blank=True) # یا مقدار پیشفرض مناسب دیگری
+
 
     def __str__(self):
         return f"History: {self.user.username} - Game {self.game.id} - Result: {self.get_result_display()}"

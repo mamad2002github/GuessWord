@@ -84,7 +84,7 @@ class UserGameHistoryView(generics.ListAPIView):
 
     def get_queryset(self):
         user=self.request.user
-        return GameHistorySerializer.objects.filter(user=user).select_related('game','game__player_1',
+        return GameHistory.objects.filter(user=user).select_related('game','game__player_1',
                                                                               "game__player_2",'user').order_by('-completion_date')
 
 class LeaderBoardView(generics.ListAPIView):
@@ -95,16 +95,17 @@ class LeaderBoardView(generics.ListAPIView):
 
 class GameViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
+    serializer_class = GameSerializer
 
     def get_queryset(self):
         return Game.objects.all().select_related(
-            'player_1',  # FK to User
-            'player_2',  # FK to User (nullable)
-            'word',  # FK to Word
-            'current_turn',  # FK to User (nullable)
-            'winner',  # FK to User (nullable)
-            'player_1__profile',  # Profile of player 1 for score updates
-            'player_2__profile'  # Profile of player 2 for score updates
+            'player_1',
+            'player_2',
+            'word',
+            'current_turn',
+            'winner',
+            'player_1__profile',
+            'player_2__profile'
         )
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset().filter(status="waiting",player_2__isnull=True)
@@ -114,37 +115,34 @@ class GameViewSet(viewsets.ModelViewSet):
             response_data.append({
                 "id": game.id,
                 "player_1_username": player1_username,
-                "difficulty": game.difficulty,
-                # Example of getting display value if needed
-                "difficulty_display": game.get_difficulty_display(),
+                "difficulty": game.word.difficulty if game.word else None,
+                "difficulty_display": game.word.get_difficulty_display() if game.word else None,
                 "status": game.status,
             })
         return Response(response_data)
     def create(self, request, *args, **kwargs):
-        difficulty = request.data['difficulty']
-        if not difficulty or difficulty not in [choice[0] for choice in Word.DIFFICULTY_CHOICES]:
-            return Response({"difficulty": difficulty}, status=status.HTTP_400_BAD_REQUEST)
+        difficulty_from_request = request.data['difficulty']
+        if not difficulty_from_request or difficulty_from_request not in [choice[0] for choice in Word.DIFFICULTY_CHOICES]:
+            return Response({"difficulty": difficulty_from_request}, status=status.HTTP_400_BAD_REQUEST)
         user = self.request.user
-        possible_words = Word.objects.filter(difficulty=difficulty)
+        possible_words = Word.objects.filter(difficulty=difficulty_from_request)
         if not possible_words.exists():
             return Response(
-                {"difficulty": [f"No words found for difficulty '{difficulty}'."]},
+                {"difficulty": [f"No words found for difficulty '{difficulty_from_request}'."]},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        word = random.choice(possible_words)
+        selected_word = random.choice(possible_words)
         try:
             game = Game.objects.create(
-                word=word,
-                difficulty=difficulty,
+                word=selected_word,
+                difficulty=difficulty_from_request,
                 player_1=user,
                 status="waiting",
             )
-            # Note: game.initialize_game() is called later when player 2 joins
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-        serializer=GameSerializer(game,context={'request': request})
-        # Use the helper method to filter output for a detail-like view
+        serializer = self.get_serializer(game, context={'request': request}) # از get_serializer استفاده کنید
         filtered_data = self._filter_game_output_data(serializer.data, detail_view=True, game_obj=game)
         return Response(filtered_data, status=status.HTTP_201_CREATED)
 
@@ -185,7 +183,7 @@ class GameViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def guess(self,request,pk):
-        letter_data = request.data.get('guessed_letters')
+        letter_data = request.data.get('letter')
         game = get_object_or_404(self.get_queryset(), pk=pk)
         user = request.user
 
@@ -202,56 +200,46 @@ class GameViewSet(viewsets.ModelViewSet):
             return Response({"detail":"not your turn."},status=status.HTTP_400_BAD_REQUEST)
 
         if game.get_remaining_time() <= 0:
-            self._end_game_due_to_timeout(game)  # End the game
-            serializer = GameSerializer(game, context={'request': request})  # Get updated state
+            self._end_game_due_to_timeout(game)
+            serializer = GameSerializer(game, context={'request': request})
             filtered_data = self._filter_game_output_data(serializer.data, detail_view=True, game_obj=game)
             return Response(
                 {"detail": "Time is up!", "game_state": filtered_data},
-                status=status.HTTP_400_BAD_REQUEST  # Bad request because action cannot be performed
+                status=status.HTTP_400_BAD_REQUEST
             )
         if letter in game.guessed_letters:
             return Response({"detail": f"Letter{letter} already guessed."},status=status.HTTP_400_BAD_REQUEST)
         try:
-            word_text = game.word.text.lower()  # Normalize word to lowercase
+            word_text = game.word.text.lower()
             correct_guess = letter in word_text
-            # Points based on project description (adjust if needed)
             points_correct = 20
-            points_incorrect = -20  # Or -10 if preferred
+            points_incorrect = -20
             score_change = points_correct if correct_guess else points_incorrect
 
-            game.guessed_letters += letter  # Add to guessed letters regardless of correctness
-
+            game.guessed_letters += letter
             all_letters_guessed = False
             if correct_guess:
-                # Update display word only on correct guess
                 new_display = "".join([c if c in game.guessed_letters else "_" for c in word_text])
                 game.current_display_word = new_display
-                # Check if all letters are now revealed
                 all_letters_guessed = "_" not in new_display
-            # else: display_word remains unchanged
 
-            # Update player score
             if user == game.player_1:
                 game.player1_score += score_change
-            elif user == game.player_2:  # Ensure player_2 exists
+            elif user == game.player_2:
                 game.player2_score += score_change
 
-            # Switch turn (only if game is not over yet)
             game_ended = False
             winner = None
             if correct_guess and all_letters_guessed:
-                # Current user wins by completing the word
                 winner = user
                 self._end_game(game, winner=winner, is_draw=False)
                 game_ended = True
             else:
-                # Switch turn to the other player
-                if game.player_2:  # Ensure there is a player 2
+                if game.player_2:
                     game.current_turn = game.player_2 if user == game.player_1 else game.player_1
-                # If no player 2 (shouldn't happen in 'active' state, but safe check)
-                # or if game ended, current_turn might be set to None in _end_game
+
             game.last_active_time = timezone.now()
-            game.save()  # Save all changes to the game state
+            game.save()
 
         except Exception as e:
             return Response({"error": f"An error occurred during guess processing: {e}"},
@@ -275,8 +263,7 @@ class GameViewSet(viewsets.ModelViewSet):
         }
         return Response(response_data, status=status.HTTP_200_OK)
 
-        # Add these helper methods inside the GameViewSet class (indented)
-# Add these helper methods inside the GameViewSet class (indented)
+
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def pause(self,request,pk=None):
         game = get_object_or_404(self.get_queryset(), pk=pk)
@@ -300,8 +287,8 @@ class GameViewSet(viewsets.ModelViewSet):
         user = request.user
         if game.status !="paused":
             return Response({"detail":"Game is not paused"},status=status.HTTP_400_BAD_REQUEST)
-        if game.player_1!=user or game.player_2!=user:
-            return Response({"detail":"Not your turn."},status=status.HTTP_400_BAD_REQUEST)
+        if user!=game.player_1 and user!=game.player_2:
+            return Response({"detail":"Not your turn."},status=status.HTTP_403_FORBIDDEN)
         game.status='active'
         game.last_active_time = timezone.now()
         game.save()
@@ -317,42 +304,31 @@ class GameViewSet(viewsets.ModelViewSet):
         based on the context (list vs detail).
         Removes sensitive or unnecessary fields.
         """
-        # Always remove fields used only for input or internal linking/sensitive data
         fields_to_remove = ['letter', 'difficulty', 'word']
 
         if not detail_view:
-            # Fields to remove for list view (show only minimal info)
             fields_to_remove.extend([
                 'player_1', 'player_2', # Full player objects removed
                 'word_details', 'guessed_letters', 'current_turn', 'current_turn_username',
                 'player1_score', 'player2_score', 'start_time',
                 'time_limit_seconds', 'remaining_time', 'winner', 'winner_username', 'is_draw'
             ])
-            # Note: We already manually constructed list view data,
-            # but this shows how filtering *could* be done if using serializer for list.
+
         else:
-            # Fields to remove/adjust for detail view
             if not data.get('player_1'): fields_to_remove.append('player_1')
             if not data.get('player_2'): fields_to_remove.append('player_2')
             if not data.get('winner'): fields_to_remove.append('winner')
             if not data.get('current_turn'): fields_to_remove.append('current_turn')
 
-            # Optionally, simplify player/winner/turn representation to just usernames
-            # We'll add simple username fields and remove the full objects
+
             if game_obj and game_obj.player_1: data['player_1_username'] = game_obj.player_1.username
             if game_obj and game_obj.player_2: data['player_2_username'] = game_obj.player_2.username
-            # (winner_username and current_turn_username are already sourced in the serializer)
 
-            # Remove the potentially large nested user objects if just username is sufficient
             fields_to_remove.extend(['player_1', 'player_2', 'winner', 'current_turn'])
 
 
-        # Perform the removal
         for field in fields_to_remove:
-            data.pop(field, None) # Use pop with default None to avoid KeyError
-
-        # Add any other conditional filtering based on game state if needed
-        # Example: if game status is finished, maybe set remaining_time to 0 or null
+            data.pop(field, None)
 
         return data
 
@@ -362,26 +338,21 @@ class GameViewSet(viewsets.ModelViewSet):
         creating history records, and updating player profiles.
         Uses transaction.atomic for consistency.
         """
-        # Prevent ending a game multiple times
         if game.status == 'finished':
             return
 
         try:
             with transaction.atomic():
-                # Update game status
                 game.status = 'finished'
                 game.winner = winner
                 game.is_draw = is_draw
-                game.current_turn = None # No more turns
-                # Consider adding an end_time field to the Game model
-                # game.end_time = timezone.now()
+                game.current_turn = None
+
                 game.save()
 
-                # Create history records and update total scores
                 players_data = [(game.player_1, game.player1_score), (game.player_2, game.player2_score)]
                 for player, score in players_data:
-                    if player: # Ensure player exists (for player_2)
-                        # Determine result for this player
+                    if player:
                         if is_draw:
                             result = 'draw'
                         elif player == winner:
@@ -389,51 +360,41 @@ class GameViewSet(viewsets.ModelViewSet):
                         else:
                             result = 'loss'
 
-                        # Create GameHistory entry
                         GameHistory.objects.create(
                             user=player,
                             game=game,
                             score_in_game=score,
                             result=result,
-                            difficulty=game.difficulty, # Store game difficulty
+                            difficulty=game.word.difficulty,
                             completion_date=timezone.now()
                         )
 
-                        # Update player's total score in their profile
-                        # Use get_or_create for safety, though profile should exist
                         profile, created = Profile.objects.get_or_create(user=player)
-                        # Ensure total_score doesn't go below zero if score is negative? (optional rule)
                         profile.total_score = max(0, profile.total_score + score)
                         profile.save()
         except Exception as e:
-            # Log the error appropriately in a real application
             print(f"Error ending game {game.id}: {e}")
-            # Consider how to handle partial failures if the transaction fails
 
     def _end_game_due_to_timeout(self, game):
         """
         Ends the game specifically because time ran out.
         Determines winner based on scores at timeout.
         """
-         # Prevent ending a game multiple times
         if game.status == 'finished':
             return
 
         winner = None
         is_draw = False
-        # Determine winner based on score comparison
-        # Ensure player_2 exists before comparing scores if game might somehow timeout before p2 joins
+
         if game.player_2:
             if game.player1_score > game.player2_score:
                 winner = game.player_1
             elif game.player2_score > game.player1_score:
                 winner = game.player_2
             else:
-                is_draw = True # Scores are equal
+                is_draw = True
         else:
-            # If timeout happens in 'waiting' state (unlikely but possible)
-            # Or handle single player mode differently here if implemented
-             winner = None # Or maybe player 1 wins by default? Define rules.
-             is_draw = False # Or True?
+             winner = None
+             is_draw = False
 
         self._end_game(game, winner=winner, is_draw=is_draw)
