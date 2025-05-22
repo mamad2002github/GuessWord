@@ -1,400 +1,378 @@
-from django.shortcuts import get_object_or_404
-from django.contrib.auth.models import User
-from django.contrib.auth.password_validation import validate_password, ValidationError as DjangoValidationError
+import re
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.authtoken.models import Token
+from django.contrib.auth import authenticate
 from django.db import transaction
 from django.utils import timezone
-from rest_framework import viewsets, status, generics, permissions
-from rest_framework.response import Response
-from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated, AllowAny
-from rest_framework import serializers
+
+from . import models
+from .models import User, Word, Game, GameState, GameHistory
+from .serializers import LoginSerializer, SignupSerializer, UserSerializer, GameSerializer, GameStateSerializer, \
+    GameHistorySerializer
 import random
-from .models import Profile, Game, Word, GameHistory
-from .serializers import UserSerializer, ProfileSerializer, GameSerializer, GameHistorySerializer
+from datetime import timedelta
 
-# Create your views here.
 
-class UserRegisterView(generics.GenericAPIView):
-    serializer_class = UserSerializer
-    permission_classes = [permissions.AllowAny]
+class LoginView(APIView):
     def post(self, request):
-        errors = {}
-        username = request.data['username']
-        password = request.data['password']
-        email = request.data['email']
-        password2 = request.data['password2']
-        first_name = request.data.get('first_name')
-        last_name = request.data.get('last_name')
-
-        if not username:
-            errors['username'] = ['Username is required']
-        if not email:
-            errors['email'] = ['Email is required']
-        if User.objects.filter(email=email).exists():
-            errors['email'] = ['Email already exists']
-        if not password:
-            errors['password'] = ['Password is required']
-        if not password2:
-            errors['password2'] = ['Password is required']
-
-        if password and password2 and password != password2:
-            errors.setdefault('password', []).append("Passwords do not match.")
-
-        if password:
-            try:
-                validate_password(password)
-            except DjangoValidationError as e:
-                errors.setdefault('password', []).append(str(e))
-        if errors:
-            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            with transaction.atomic():
-                user = User.objects.create_user(username=username,first_name=first_name,last_name=last_name, email=email)
-                user.set_password(password)
-                user.save()
-
-                if not hasattr(user, 'profile'):
-                    Profile.objects.create(user=user)
-
-        except Exception as e:
-            return Response({"error": f"An error occurred during registration: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-        output_serializer = self.get_serializer(user)
-        data = {
-            'id': output_serializer.data['id'],
-            'username': output_serializer.data['username'],
-            'email': output_serializer.data['email'],
-            'first_name': output_serializer.data['first_name'],
-            'last_name': output_serializer.data['last_name'],
-        }
-        return Response(data, status=status.HTTP_201_CREATED)
+        serializer = LoginSerializer(data=request.data)
+        if serializer.is_valid():
+            username = serializer.validated_data['username']
+            password = serializer.validated_data['password']
+            user = authenticate(username=username, password=password)
+            if user:
+                token, _ = Token.objects.get_or_create(user=user)
+                return Response({
+                    'token': token.key,
+                    'user': UserSerializer(user).data
+                }, status=status.HTTP_200_OK)
+            return Response({'error': 'نام کاربری یا رمز عبور اشتباه است'}, status=status.HTTP_401_UNAUTHORIZED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class UserProfileViewSet(generics.RetrieveAPIView):
-    queryset =Profile.objects.select_related('user').all()
-    serializer_class = ProfileSerializer
+class SignupView(APIView):
+    def post(self, request):
+        serializer = SignupSerializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.save()
+            token, _ = Token.objects.get_or_create(user=user)
+            return Response({
+                'token': token.key,
+                'user': UserSerializer(user).data
+            }, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ProfileView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def get_object(self):
-        return self.request.user.profile
-class UserGameHistoryView(generics.ListAPIView):
-    serializer_class = GameHistorySerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        user=self.request.user
-        return GameHistory.objects.filter(user=user).select_related('game','game__player_1',
-                                                                              "game__player_2",'user').order_by('-completion_date')
-
-class LeaderBoardView(generics.ListAPIView):
-    queryset = Profile.objects.select_related("user").order_by("-total_score")[:10]
-    serializer_class = ProfileSerializer
-    permission_classes = [AllowAny]
-
-
-class GameViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
-    serializer_class = GameSerializer
-
-    def get_queryset(self):
-        return Game.objects.all().select_related(
-            'player_1',
-            'player_2',
-            'word',
-            'current_turn',
-            'winner',
-            'player_1__profile',
-            'player_2__profile'
-        )
-    def list(self, request, *args, **kwargs):
-        queryset = self.get_queryset().filter(status="waiting",player_2__isnull=True)
-        response_data = []
-        for game in queryset:
-            player1_username = game.player_1.username if game.player_1 else None
-            response_data.append({
-                "id": game.id,
-                "player_1_username": player1_username,
-                "difficulty": game.word.difficulty if game.word else None,
-                "difficulty_display": game.word.get_difficulty_display() if game.word else None,
-                "status": game.status,
-            })
-        return Response(response_data)
-    def create(self, request, *args, **kwargs):
-        difficulty_from_request = request.data['difficulty']
-        if not difficulty_from_request or difficulty_from_request not in [choice[0] for choice in Word.DIFFICULTY_CHOICES]:
-            return Response({"difficulty": difficulty_from_request}, status=status.HTTP_400_BAD_REQUEST)
-        user = self.request.user
-        possible_words = Word.objects.filter(difficulty=difficulty_from_request)
-        if not possible_words.exists():
-            return Response(
-                {"difficulty": [f"No words found for difficulty '{difficulty_from_request}'."]},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        selected_word = random.choice(possible_words)
-        try:
-            game = Game.objects.create(
-                word=selected_word,
-                difficulty=difficulty_from_request,
-                player_1=user,
-                status="waiting",
-            )
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-        serializer = self.get_serializer(game, context={'request': request}) # از get_serializer استفاده کنید
-        filtered_data = self._filter_game_output_data(serializer.data, detail_view=True, game_obj=game)
-        return Response(filtered_data, status=status.HTTP_201_CREATED)
-
-    def retrieve(self, request, *args, **kwargs):
-        game = Game.objects.get(pk=kwargs['pk'])
-
-        if request.user==game.player_1 or request.user==game.player_2:
-            serializer = GameSerializer(game, context={'request': request})
-            filtered_data = self._filter_game_output_data(serializer.data, detail_view=True, game_obj=game)
-            return Response(filtered_data, status=status.HTTP_200_OK)
-        else:
-            return Response({"detail": "You are not allowed to see this game!"},)
-
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
-    def join(self, request, *args, **kwargs):
-        game = Game.objects.get(pk=kwargs['pk'])
-
-        if game.status != "waiting" and game.player_2 is not None:
-            return Response({'detail':'this game is not ready to joined'},)
-        if request.user==game.player_1:
-            return Response({'detail':'you can not join to own game'})
-
-        if Game.objects.filter(status__in=['waiting', 'active'], player_1=request.user).exclude(pk=game.pk).exists() or \
-                Game.objects.filter(status__in=['waiting', 'active'], player_2=request.user).exclude(pk=game.pk).exists():
-            return Response({"detail": "You are already in an active game."}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            game.player_2 = request.user
-            game.status = "active"
-            game.initialize_game()
-            game.save()
-        except Exception as e:
-            return Response({"error": f"Could not join game: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-        serializer = GameSerializer(game, context={'request': request})
-        filtered_data = self._filter_game_output_data(serializer.data, detail_view=True, game_obj=game)
-        return Response(filtered_data, status=status.HTTP_200_OK)
-
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
-    def guess(self,request,pk):
-        letter_data = request.data.get('letter')
-        game = get_object_or_404(self.get_queryset(), pk=pk)
-        user = request.user
-
-        if not letter_data  :
-            return Response({"detail": "Letter Not Provide."},status=status.HTTP_400_BAD_REQUEST)
-        if not isinstance(letter_data, str) or len(letter_data) != 1 or not letter_data.isalpha():
-            return Response({"letter": ["Please provide a single alphabetical character."]},
-                            status=status.HTTP_400_BAD_REQUEST)
-        letter = letter_data.lower()
-
-        if game.status != 'active':
-            return Response({"detail": "Game is not active."},status=status.HTTP_400_BAD_REQUEST)
-        if user != game.current_turn:
-            return Response({"detail":"not your turn."},status=status.HTTP_400_BAD_REQUEST)
-
-        if game.get_remaining_time() <= 0:
-            self._end_game_due_to_timeout(game)
-            serializer = GameSerializer(game, context={'request': request})
-            filtered_data = self._filter_game_output_data(serializer.data, detail_view=True, game_obj=game)
-            return Response(
-                {"detail": "Time is up!", "game_state": filtered_data},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        if letter in game.guessed_letters:
-            return Response({"detail": f"Letter{letter} already guessed."},status=status.HTTP_400_BAD_REQUEST)
-        try:
-            word_text = game.word.text.lower()
-            correct_guess = letter in word_text
-            points_correct = 20
-            points_incorrect = -20
-            score_change = points_correct if correct_guess else points_incorrect
-
-            game.guessed_letters += letter
-            all_letters_guessed = False
-            if correct_guess:
-                new_display = "".join([c if c in game.guessed_letters else "_" for c in word_text])
-                game.current_display_word = new_display
-                all_letters_guessed = "_" not in new_display
-
-            if user == game.player_1:
-                game.player1_score += score_change
-            elif user == game.player_2:
-                game.player2_score += score_change
-
-            game_ended = False
-            winner = None
-            if correct_guess and all_letters_guessed:
-                winner = user
-                self._end_game(game, winner=winner, is_draw=False)
-                game_ended = True
-            else:
-                if game.player_2:
-                    game.current_turn = game.player_2 if user == game.player_1 else game.player_1
-
-            game.last_active_time = timezone.now()
-            game.save()
-
-        except Exception as e:
-            return Response({"error": f"An error occurred during guess processing: {e}"},
-                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        serializer = GameSerializer(game, context={'request': request})
-        game_state_data = self._filter_game_output_data(serializer.data, detail_view=True, game_obj=game)
-
-        response_detail = "Guess processed."
-        if game_ended:
-            win_message = "You guessed the word and won!" if winner == user else f"{winner.username} guessed the word and won!"
-            response_detail = f"Game Over! {win_message}"
-        elif correct_guess:
-            response_detail = f"Correct guess: '{letter}'!"
-        else:
-            response_detail = f"Incorrect guess: '{letter}'."
-
-        response_data = {
-            "detail": response_detail,
-            "correct": correct_guess,
-            "game_state": game_state_data
-        }
-        return Response(response_data, status=status.HTTP_200_OK)
-
-
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
-    def pause(self,request,pk=None):
-        game = get_object_or_404(self.get_queryset(), pk=pk)
-        user = request.user
-        if game.status!='active':
-            return Response({"detail":"Game is not active."},status=status.HTTP_400_BAD_REQUEST)
-        if user!=game.player_1 and user!=game.player_2:
-            return Response({"detail":"Not your turn."},status=status.HTTP_400_BAD_REQUEST)
-
-        now = timezone.now()
-        elapsed_since_last_active = (now - game.last_active_time).total_seconds()
-        game.time_elapsed_before_pause += elapsed_since_last_active
-        game.status = 'paused'
-
-        game.save()
-        serializer = self.get_serializer(game)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
-    def resume(self,request,pk=None):
-        game = get_object_or_404(self.get_queryset(), pk=pk)
-        user = request.user
-        if game.status !="paused":
-            return Response({"detail":"Game is not paused"},status=status.HTTP_400_BAD_REQUEST)
-        if user!=game.player_1 and user!=game.player_2:
-            return Response({"detail":"Not your turn."},status=status.HTTP_403_FORBIDDEN)
-        game.status='active'
-        game.last_active_time = timezone.now()
-        game.save()
-
-        serializer = self.get_serializer(game)
+    def get(self, request):
+        serializer = UserSerializer(request.user)
         return Response(serializer.data)
 
 
+class GameHistoryView(APIView):
+    permission_classes = [IsAuthenticated]
 
-    def _filter_game_output_data(self, data, detail_view=False, game_obj=None):
-        """
-        Helper method to filter the output of the generic GameSerializer
-        based on the context (list vs detail).
-        Removes sensitive or unnecessary fields.
-        """
-        fields_to_remove = ['letter', 'difficulty', 'word']
-
-        if not detail_view:
-            fields_to_remove.extend([
-                'player_1', 'player_2', # Full player objects removed
-                'word_details', 'guessed_letters', 'current_turn', 'current_turn_username',
-                'player1_score', 'player2_score', 'start_time',
-                'time_limit_seconds', 'remaining_time', 'winner', 'winner_username', 'is_draw'
-            ])
-
-        else:
-            if not data.get('player_1'): fields_to_remove.append('player_1')
-            if not data.get('player_2'): fields_to_remove.append('player_2')
-            if not data.get('winner'): fields_to_remove.append('winner')
-            if not data.get('current_turn'): fields_to_remove.append('current_turn')
+    def get(self, request):
+        histories = GameHistory.objects.filter(player=request.user)
+        serializer = GameHistorySerializer(histories, many=True)
+        return Response(serializer.data)
 
 
-            if game_obj and game_obj.player_1: data['player_1_username'] = game_obj.player_1.username
-            if game_obj and game_obj.player_2: data['player_2_username'] = game_obj.player_2.username
+class NewGameView(APIView):
+    permission_classes = [IsAuthenticated]
 
-            fields_to_remove.extend(['player_1', 'player_2', 'winner', 'current_turn'])
-
-
-        for field in fields_to_remove:
-            data.pop(field, None)
-
-        return data
-
-    def _end_game(self, game, winner, is_draw):
-        """
-        Handles the logic for ending a game: updating status,
-        creating history records, and updating player profiles.
-        Uses transaction.atomic for consistency.
-        """
-        if game.status == 'finished':
-            return
-
-        try:
+    def post(self, request):
+        data = request.data.copy()
+        data['player1'] = request.user.id
+        serializer = GameSerializer(data=data, context={'request': request})
+        if serializer.is_valid():
             with transaction.atomic():
-                game.status = 'finished'
-                game.winner = winner
-                game.is_draw = is_draw
-                game.current_turn = None
+                game = serializer.save(player1=request.user)
+                time_limit = {'easy': 300, 'medium': 240, 'hard': 180}[game.level]
+                word = Word.objects.filter(level=game.level).order_by('?').first()
+                state_data = {
+                    'game': game.id,
+                    'current_player': request.user.id,
+                    'word': word.id,
+                    'player1_time': time_limit,
+                    'player2_time': time_limit,
+                    'revealed_letters': {str(request.user.id): [], 'player2': []},
+                    'hints_used': {str(request.user.id): [1], 'player2': [1]}
+                }
+                state_serializer = GameStateSerializer(data=state_data)
+                if state_serializer.is_valid():
+                    state_serializer.save()
+                    return Response({'game_id': game.game_id, 'status': 'pending'}, status=status.HTTP_201_CREATED)
+                return Response(state_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
+class JoinGameView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, game_id):
+        try:
+            game = Game.objects.get(game_id=game_id, status='pending')
+            if game.player1 == request.user:
+                return Response({'error': 'نمی‌توانید به بازی خودتان بپیوندید'}, status=status.HTTP_400_BAD_REQUEST)
+            with transaction.atomic():
+                game.player2 = request.user
+                game.status = 'active'
                 game.save()
+                state = GameState.objects.get(game=game)
+                state.current_player = random.choice([game.player1, game.player2])
+                state.last_turn_time = timezone.now()
+                state.revealed_letters['player2'] = []
+                state.hints_used['player2'] = [1]
+                state.save()
+                serializer = GameSerializer(game)
+                return Response(serializer.data)
+        except Game.DoesNotExist:
+            return Response({'error': 'بازی یافت نشد یا در انتظار نیست'}, status=status.HTTP_404_NOT_FOUND)
 
-                players_data = [(game.player_1, game.player1_score), (game.player_2, game.player2_score)]
-                for player, score in players_data:
-                    if player:
-                        if is_draw:
-                            result = 'draw'
-                        elif player == winner:
-                            result = 'win'
-                        else:
-                            result = 'loss'
 
-                        GameHistory.objects.create(
-                            user=player,
-                            game=game,
-                            score_in_game=score,
-                            result=result,
-                            difficulty=game.word.difficulty,
-                            completion_date=timezone.now()
-                        )
+class GameStateView(APIView):
+    permission_classes = [IsAuthenticated]
 
-                        profile, created = Profile.objects.get_or_create(user=player)
-                        profile.total_score = max(0, profile.total_score + score)
-                        profile.save()
-        except Exception as e:
-            print(f"Error ending game {game.id}: {e}")
+    def get(self, request, game_id):
+        try:
+            game = Game.objects.get(game_id=game_id)
+            if request.user not in [game.player1, game.player2]:
+                return Response({'error': 'عدم دسترسی'}, status=status.HTTP_403_FORBIDDEN)
+            state = GameState.objects.get(game=game)
+            serializer = GameStateSerializer(state)
+            return Response(serializer.data)
+        except Game.DoesNotExist:
+            return Response({'error': 'بازی یافت نشد'}, status=status.HTTP_404_NOT_FOUND)
 
-    def _end_game_due_to_timeout(self, game):
-        """
-        Ends the game specifically because time ran out.
-        Determines winner based on scores at timeout.
-        """
-        if game.status == 'finished':
-            return
 
-        winner = None
-        is_draw = False
+class GuessView(APIView):
+    permission_classes = [IsAuthenticated]
 
-        if game.player_2:
-            if game.player1_score > game.player2_score:
-                winner = game.player_1
-            elif game.player2_score > game.player1_score:
-                winner = game.player_2
+    def post(self, request, game_id):
+        try:
+            game = Game.objects.get(game_id=game_id, status='active')
+            if request.user not in [game.player1, game.player2]:
+                return Response({'error': 'عدم دسترسی'}, status=status.HTTP_403_FORBIDDEN)
+            state = GameState.objects.get(game=game)
+            if state.current_player != request.user:
+                return Response({'error': 'نوبت شما نیست'}, status=status.HTTP_400_BAD_REQUEST)
+
+            letter = request.data.get('letter', '').upper()
+            position = request.data.get('position')
+            if not letter or position is None:
+                return Response({'error': 'حرف و موقعیت مورد نیاز است'}, status=status.HTTP_400_BAD_REQUEST)
+
+            word = state.word.text.upper()
+            if not re.match(r'^[A-Z]$', letter):
+                return Response({'error': 'حرف باید یک کاراکتر A-Z باشد'}, status=status.HTTP_400_BAD_REQUEST)
+            if position < 0 or position >= len(word):
+                return Response({'error': 'موقعیت نامعتبر است'}, status=status.HTTP_400_BAD_REQUEST)
+
+            with transaction.atomic():
+                if letter in word and word[position] == letter:
+                    state.guessed_letters[letter] = {'correct': True, 'position': position}
+                    if request.user == game.player1:
+                        state.player1_score += 20
+                        request.user.coins += 1
+                    else:
+                        state.player2_score += 20
+                        request.user.coins += 1
+                    request.user.save()
+                else:
+                    state.guessed_letters[letter] = {'correct': False, 'position': position}
+                    if request.user == game.player1:
+                        state.player1_score -= 20
+                    else:
+                        state.player2_score -= 20
+
+                state.current_player = game.player2 if request.user == game.player1 else game.player1
+                state.last_turn_time = timezone.now()
+                state.save()
+
+                # چک کردن اتمام بازی
+                if all(word[i] in [k for k, v in state.guessed_letters.items() if v['correct']] for i in
+                       range(len(word))):
+                    return self.end_game(game, state)
+
+                serializer = GameStateSerializer(state)
+                return Response(serializer.data)
+        except Game.DoesNotExist:
+            return Response({'error': 'بازی یافت نشد'}, status=status.HTTP_404_NOT_FOUND)
+
+    def end_game(self, game, state):
+        game.status = 'finished'
+        with transaction.atomic():
+            if state.player1_score > state.player2_score:
+                game.winner = game.player1
+                game.player1.xp += 50
+                game.player1.save()
+                GameHistory.objects.create(game=game, player=game.player1, opponent=game.player2, level=game.level,
+                                           result='won')
+                GameHistory.objects.create(game=game, player=game.player2, opponent=game.player1, level=game.level,
+                                           result='lost')
+            elif state.player2_score > state.player1_score:
+                game.winner = game.player2
+                game.player2.xp += 50
+                game.player2.save()
+                GameHistory.objects.create(game=game, player=game.player2, opponent=game.player1, level=game.level,
+                                           result='won')
+                GameHistory.objects.create(game=game, player=game.player1, opponent=game.player2, level=game.level,
+                                           result='lost')
             else:
-                is_draw = True
-        else:
-             winner = None
-             is_draw = False
+                GameHistory.objects.create(game=game, player=game.player1, opponent=game.player2, level=game.level,
+                                           result='draw')
+                GameHistory.objects.create(game=game, player=game.player2, opponent=game.player1, level=game.level,
+                                           result='draw')
+            game.save()
+        serializer = GameSerializer(game)
+        return Response({'status': 'game ended', 'game': serializer.data})
 
-        self._end_game(game, winner=winner, is_draw=is_draw)
+
+class HintView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, game_id):
+        try:
+            game = Game.objects.get(game_id=game_id, status='active')
+            if request.user not in [game.player1, game.player2]:
+                return Response({'error': 'عدم دسترسی'}, status=status.HTTP_403_FORBIDDEN)
+            if request.user.coins < 1:
+                return Response({'error': 'سکه کافی نیست'}, status=status.HTTP_400_BAD_REQUEST)
+
+            state = GameState.objects.get(game=game)
+            user_hints = state.hints_used.get(str(request.user.id), [1])
+            if len(user_hints) >= 3:
+                return Response({'error': 'نکته دیگری در دسترس نیست'}, status=status.HTTP_400_BAD_REQUEST)
+
+            with transaction.atomic():
+                next_hint = max(user_hints) + 1
+                user_hints.append(next_hint)
+                state.hints_used[str(request.user.id)] = user_hints
+                request.user.coins -= 1
+                request.user.save()
+                state.save()
+                hint_text = getattr(state.word, f'hint{next_hint}')
+                return Response({'hint': hint_text})
+        except Game.DoesNotExist:
+            return Response({'error': 'بازی یافت نشد'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class RevealLetterView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, game_id):
+        try:
+            game = Game.objects.get(game_id=game_id, status='active')
+            if request.user not in [game.player1, game.player2]:
+                return Response({'error': 'عدم دسترسی'}, status=status.HTTP_403_FORBIDDEN)
+            if request.user.coins < 1:
+                return Response({'error': 'سکه کافی نیست'}, status=status.HTTP_400_BAD_REQUEST)
+
+            state = GameState.objects.get(game=game)
+            word = state.word.text.upper()
+            unrevealed = [i for i in range(len(word)) if
+                          word[i] not in state.revealed_letters.get(str(request.user.id), [])]
+            if not unrevealed:
+                return Response({'error': 'حرفی برای نمایش وجود ندارد'}, status=status.HTTP_400_BAD_REQUEST)
+
+            with transaction.atomic():
+                position = random.choice(unrevealed)
+                letter = word[position]
+                user_revealed = state.revealed_letters.get(str(request.user.id), [])
+                user_revealed.append(letter)
+                state.revealed_letters[str(request.user.id)] = user_revealed
+                request.user.coins -= 1
+                request.user.save()
+                state.save()
+                return Response({'letter': letter, 'position': position})
+        except Game.DoesNotExist:
+            return Response({'error': 'بازی یافت نشد'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class PauseGameView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, game_id):
+        try:
+            game = Game.objects.get(game_id=game_id, status='active')
+            if request.user not in [game.player1, game.player2]:
+                return Response({'error': 'عدم دسترسی'}, status=status.HTTP_403_FORBIDDEN)
+            state = GameState.objects.get(game=game)
+            with transaction.atomic():
+                game.status = 'paused'
+                state.paused_at = timezone.now()
+                game.save()
+                state.save()
+                serializer = GameSerializer(game)
+                return Response({'status': 'paused', 'game': serializer.data})
+        except Game.DoesNotExist:
+            return Response({'error': 'بازی یافت نشد'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class ResumeGameView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, game_id):
+        try:
+            game = Game.objects.get(game_id=game_id, status='paused')
+            if request.user not in [game.player1, game.player2]:
+                return Response({'error': 'عدم دسترسی'}, status=status.HTTP_403_FORBIDDEN)
+            if not game.player2:
+                return Response({'error': 'نمی‌توان بدون بازیکن دوم ادامه داد'}, status=status.HTTP_400_BAD_REQUEST)
+            if (timezone.now() - game.created_at).days > 7:
+                return Response({'error': 'بازی منقضی شده است'}, status=status.HTTP_400_BAD_REQUEST)
+            with transaction.atomic():
+                game.status = 'active'
+                state = GameState.objects.get(game=game)
+                state.paused_at = None
+                state.last_turn_time = timezone.now()
+                game.save()
+                state.save()
+                serializer = GameSerializer(game)
+                return Response({'status': 'resumed', 'game': serializer.data})
+        except Game.DoesNotExist:
+            return Response({'error': 'بازی یافت نشد'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class GuessWordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, game_id):
+        try:
+            game = Game.objects.get(game_id=game_id, status='active')
+            if request.user not in [game.player1, game.player2]:
+                return Response({'error': 'عدم دسترسی'}, status=status.HTTP_403_FORBIDDEN)
+            state = GameState.objects.get(game=game)
+            if state.current_player != request.user:
+                return Response({'error': 'نوبت شما نیست'}, status=status.HTTP_400_BAD_REQUEST)
+
+            guess = request.data.get('guess', '').upper()
+            word = state.word.text.upper()
+            with transaction.atomic():
+                if guess == word:
+                    game.winner = request.user
+                    request.user.xp += 50
+                    request.user.save()
+                    GameHistory.objects.create(game=game, player=game.player1, opponent=game.player2, level=game.level,
+                                               result='won' if game.player1 == request.user else 'lost')
+                    GameHistory.objects.create(game=game, player=game.player2, opponent=game.player1, level=game.level,
+                                               result='won' if game.player2 == request.user else 'lost')
+                else:
+                    game.winner = game.player2 if request.user == game.player1 else game.player1
+                    game.winner.xp += 50
+                    game.winner.save()
+                    GameHistory.objects.create(game=game, player=game.player1, opponent=game.player2, level=game.level,
+                                               result='won' if game.player1 == game.winner else 'lost')
+                    GameHistory.objects.create(game=game, player=game.player2, opponent=game.player1, level=game.level,
+                                               result='won' if game.player2 == game.winner else 'lost')
+                game.status = 'finished'
+                game.save()
+                serializer = GameSerializer(game)
+                return Response({'status': 'game ended', 'game': serializer.data})
+        except Game.DoesNotExist:
+            return Response({'error': 'بازی یافت نشد'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class PendingGamesView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        games = Game.objects.filter(status='pending').exclude(player1=request.user)
+        serializer = GameSerializer(games, many=True)
+        return Response(serializer.data)
+
+
+class PausedGamesView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        games = Game.objects.filter(status='paused').filter(
+            models.Q(player1=request.user) | models.Q(player2=request.user))
+        serializer = GameSerializer(games, many=True)
+        return Response(serializer.data)

@@ -1,128 +1,98 @@
+import uuid
 from django.utils import timezone
-from django.contrib.auth.models import User
+from django.contrib.auth.models import AbstractUser
 from django.db import models
-from django.db.models.signals import post_save
-from django.dispatch import receiver
-# Create your models here.
 
-class Profile(models.Model):
+class User(AbstractUser):
+    username = models.CharField(max_length=30, unique=True)
+    first_name = models.CharField(max_length=30)
+    last_name = models.CharField(max_length=30)
+    xp = models.PositiveIntegerField(default=0)
+    coins = models.PositiveIntegerField(default=0)
 
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
-    total_score = models.IntegerField(default=0)
+    @property
+    def level(self):
+        if self.xp < 400:
+            return 1
+        elif self.xp < 800:
+            return 2
+        elif self.xp < 1500:
+            return 3
+        elif self.xp < 2500:
+            return 4
+        else:
+            return 5
 
     def __str__(self):
-        return f"{self.user.username} - Score: {self.total_score}"
-
+        return self.username
 
 class Word(models.Model):
-
-    DIFFICULTY_CHOICES = [
+    LEVEL_CHOICES = (
         ('easy', 'Easy'),
         ('medium', 'Medium'),
         ('hard', 'Hard'),
-    ]
-    text = models.CharField(max_length=50, unique=True,)
-    difficulty = models.CharField(max_length=10, choices=DIFFICULTY_CHOICES,)
+    )
+    text = models.CharField(max_length=100)
+    level = models.CharField(max_length=10, choices=LEVEL_CHOICES)
+    hint1 = models.CharField(max_length=100)
+    hint2 = models.CharField(max_length=100)
+    hint3 = models.CharField(max_length=100)
 
     def __str__(self):
-        return f"{self.text} ({self.get_difficulty_display()})"
-
+        return self.text
 
 class Game(models.Model):
-
-    STATUS_CHOICES = [
-        ('waiting', 'Waiting'),
+    STATUS_GAME = (
+        ('pending', 'Pending'),
         ('active', 'Active'),
         ('paused', 'Paused'),
         ('finished', 'Finished'),
-    ]
-
-    word = models.ForeignKey(Word, on_delete=models.PROTECT, related_name='games',)
-    player_1 = models.ForeignKey(User, on_delete=models.CASCADE, related_name='games_as_player1',)
-    player_2 = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, related_name='games_as_player2', )
-    current_display_word = models.CharField(max_length=50, default="", blank=True, )
-    guessed_letters = models.CharField(max_length=50, default="", blank=True,)
-    current_turn = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='games_turn', )
-    player1_score = models.IntegerField(default=0,)
-    player2_score = models.IntegerField(default=0, )
-    time_limit_seconds = models.PositiveIntegerField(default=600, )
-    start_time = models.DateTimeField(auto_now_add=True, )
-    last_active_time = models.DateTimeField(default=timezone.now,)
-    time_elapsed_before_pause = models.PositiveIntegerField(default=0,)
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='waiting',)
-    winner = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='games_won', )
-    is_draw = models.BooleanField(default=False,)
-
-    def initialize_game(self):
-        self.current_display_word = "_" * len(self.word.text)
-        if self.word.difficulty == 'easy':
-            self.time_limit_seconds = 10 * 60
-        elif self.word.difficulty == 'medium':
-            self.time_limit_seconds = 7 * 60
-        else: # hard
-            self.time_limit_seconds = 5 * 60
-        self.guessed_letters = ""
-
-        self.current_turn = self.player_1
-        self.start_time = timezone.now()
-        self.last_active_time = self.start_time
-        self.status = 'active' if self.player_2 else 'waiting'
-        self.save()
-
-    def get_remaining_time(self):
-        if self.status != 'active':
-            return self.time_limit_seconds - self.time_elapsed_before_pause
-
-        now = timezone.now()
-        current_elapsed = (now - self.last_active_time).total_seconds()
-        total_elapsed = self.time_elapsed_before_pause + current_elapsed
-        remaining = self.time_limit_seconds - total_elapsed
-        return max(0, int(remaining))
+    )
+    LEVEL_CHOICES = (
+        ('easy', 'Easy'),
+        ('medium', 'Medium'),
+        ('hard', 'Hard'),
+    )
+    player1 = models.ForeignKey(User, on_delete=models.CASCADE, related_name='game_player1')
+    player2 = models.ForeignKey(User, on_delete=models.CASCADE, related_name='game_player2', null=True, blank=True)
+    game_id = models.UUIDField(unique=True, editable=False)
+    level = models.CharField(max_length=10, choices=LEVEL_CHOICES)
+    created_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=10, choices=STATUS_GAME, default='pending')
+    winner = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='won_games')
 
     def __str__(self):
-        player2_username = self.player_2.username if self.player_2 else "Waiting..."
-        return f"Game {self.id}: {self.player_1.username} vs {player2_username} ({self.get_status_display()})"
-
+        return f"Game {self.game_id} ({self.level})"
 
 class GameHistory(models.Model):
-
-    RESULT_CHOICES = [
+    RESULT_GAME = (
         ('win', 'Win'),
-        ('loss', 'Loss'),
+        ('lose', 'Lose'),
         ('draw', 'Draw'),
-        ('incomplete', 'Incomplete'),
-    ]
-
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='game_history',)
-    game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name='history_entries', )
-    score_in_game = models.IntegerField()
-    result = models.CharField(max_length=10, choices=RESULT_CHOICES,)
-    completion_date = models.DateTimeField(default=timezone.now,)
-    difficulty = models.CharField(max_length=10, choices=Word.DIFFICULTY_CHOICES, default='easy', null=True, blank=True) # یا مقدار پیشفرض مناسب دیگری
-
+    )
+    game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name='game_history')
+    player = models.ForeignKey(User, on_delete=models.CASCADE, related_name='game_player')
+    opponent = models.ForeignKey(User, on_delete=models.CASCADE, related_name='opponent_game')
+    level = models.CharField(max_length=10, choices=Game.LEVEL_CHOICES)
+    date = models.DateTimeField(auto_now_add=True)
+    result = models.CharField(max_length=10, choices=RESULT_GAME, default='draw')
 
     def __str__(self):
-        return f"History: {self.user.username} - Game {self.game.id} - Result: {self.get_result_display()}"
+        return f"{self.player.username} vs {self.opponent.username} ({self.result})"
 
-    class Meta:
-        verbose_name_plural = "Game Histories"
-        ordering = ['-completion_date']
+class GameState(models.Model):
+    game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name='game_state')
+    current_player = models.ForeignKey(User, on_delete=models.CASCADE, related_name='current_player', null=True, blank=True)
+    word = models.ForeignKey(Word, on_delete=models.CASCADE, related_name='game_word')
+    guessed_letters = models.JSONField(default=dict)
+    player1_score = models.IntegerField(default=0)
+    player2_score = models.IntegerField(default=0)
+    player1_time = models.IntegerField()
+    player2_time = models.IntegerField()
+    revealed_letters = models.JSONField(default=dict)
+    hints_used = models.JSONField(default=dict)
+    last_turn_time = models.DateTimeField(null=True, blank=True)
+    paused_at = models.DateTimeField(null=True, blank=True)
 
-
-# --- سیگنال‌ها (اختیاری اما مفید) ---
-# می‌توانید سیگنال‌هایی بنویسید که:
-# 1. هنگام ایجاد کاربر، پروفایل او را بسازد.
-# 2. هنگام پایان یافتن بازی (status='finished')، دو رکورد GameHistory (یکی برای هر بازیکن) ایجاد کند
-#    و امتیاز کلی (total_score) پروفایل بازیکنان را آپدیت کند.
-
-# مثال سیگنال برای ساخت پروفایل (در signals.py یا انتهای models.py)
-
-
-    @receiver(post_save, sender=User)
-    def create_user_profile(sender, instance, created, **kwargs):
-        if created:
-            Profile.objects.create(user=instance)
-
-    @receiver(post_save, sender=User)
-    def save_user_profile(sender, instance, **kwargs):
-        instance.profile.save()
+    def __str__(self):
+        return f"State for Game {self.game.game_id}"

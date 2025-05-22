@@ -19,5 +19,5 @@ from django.urls import path,include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path("api/game/",include("GuessWord.urls")),
+    path('api/', include('game.urls')),  # Include app-specific URLs
 ]

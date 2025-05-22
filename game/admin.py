@@ -3,5 +3,6 @@ from .models import *
 # Register your models here.
 admin.site.register(Game)
 admin.site.register(GameHistory)
-admin.site.register(Profile)
+admin.site.register(GameState)
 admin.site.register(Word)
+admin.site.register(User)
