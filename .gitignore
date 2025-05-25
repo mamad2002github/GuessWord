@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+virtualenv/
+venv.bak/
+.direnv/
+
+# Django
+*.log
+db.sqlite3 # اگر از SQLite استفاده می‌کنید و نمی‌خواهید دیتابیس به گیت کامیت شود
+# local_settings.py # اگر تنظیمات محلی جداگانه‌ای دارید
+
+# IDE / Editor specific
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+
+# ... (مواردی که در مرحله ۳ اضافه کردید) ...
+
+# ====== Frontend Specific Ignores ======
+# Logs
+frontend/logs
+frontend/*.log
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/pnpm-debug.log*
+frontend/lerna-debug.log*
+
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/*.local
+
+# Editor directories and files (مربوط به پوشه فرانت‌اند)
+frontend/.vscode/*
+!frontend/.vscode/extensions.json
+frontend/.idea/
+frontend/.DS_Store
+frontend/*.suo
+frontend/*.ntvs*
+frontend/*.njsproj
+frontend/*.sln
+frontend/*.sw?
+# ====== End of Frontend Specific Ignores ======

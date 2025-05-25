@@ -1,0 +1,11 @@
+{
+  "name": "wordgame-frontend",
+  "version": "1.0.0",
+  "description": "Frontend for Word Guess Game",
+  "scripts": {
+    "start": "serve -s public"
+  },
+  "dependencies": {
+    "serve": "^14.2.4"
+  }
+}
