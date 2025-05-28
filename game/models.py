@@ -77,7 +77,7 @@ class Game(models.Model):
     )
     player1 = models.ForeignKey(User, on_delete=models.CASCADE, related_name='game_player1')
     player2 = models.ForeignKey(User, on_delete=models.CASCADE, related_name='game_player2', null=True, blank=True)
-    game_id = models.UUIDField(default=uuid.uuid4(),unique=True, editable=False)
+    game_id = models.UUIDField(default=uuid.uuid4,unique=True, editable=False)
     level = models.CharField(max_length=10, choices=LEVEL_CHOICES)
     created_at = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=10, choices=STATUS_GAME, default='pending')
@@ -89,7 +89,7 @@ class Game(models.Model):
 
 class GameHistory(models.Model):
     RESULT_GAME = (
-        ('won', 'Wion'),
+        ('won', 'Won'),
         ('lose', 'Lost'),
         ('draw', 'Draw'),
     )
@@ -109,7 +109,7 @@ class GameState(models.Model):
     current_player = models.ForeignKey(User, on_delete=models.CASCADE, related_name='current_player', null=True,
                                        blank=True)
     word = models.ForeignKey(Word, on_delete=models.CASCADE, related_name='game_word')
-    guessed_letters = models.JSONField(default=dict)
+    guessed_letters = models.JSONField(default=list)
     player1_score = models.IntegerField(default=0)
     player2_score = models.IntegerField(default=0)
     player1_time = models.IntegerField()

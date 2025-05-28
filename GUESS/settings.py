@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-t*4lx!a!3t!9pv*-nhfe6%o-bu)2g3k)maj6d!p#%%gje6r-k8
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['f630-62-141-32-145.ngrok-free.app','localhost','127.0.0.1']
 
 
 # Application definition
@@ -38,10 +38,12 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'game.apps.GameConfig',
+    'rest_framework.authtoken',
     'rest_framework',
     'channels',
-    'redis',
+        'redis', # این اپ برای استفاده از channels_redis نیاز نیست در INSTALLED_APPS باشد، مگر اینکه مستقیما از redis استفاده دیگری می‌کنید,
     'corsheaders',
+    'drf_spectacular',
 ]
 
 AUTH_USER_MODEL = 'game.User'
@@ -107,10 +109,38 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
+ASGI_APPLICATION = 'GUESS.asgi.application' # این خط معمولا برای Channels نیاز است
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("localhost", 6379)], # آدرس سرور Redis خود را وارد کنید
+        },
+    },
+}
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+        # 'rest_framework.authentication.SessionAuthentication', # اگر برای browseable API لازم دارید
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    # ------------- BEGIN NEW/MODIFIED SECTION (Schema for drf-spectacular) -------------
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    # ------------- END NEW/MODIFIED SECTION -------------
+}
 
+# (اختیاری) تنظیمات بیشتر برای drf-spectacular
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'GUESS Game API',
+    'DESCRIPTION': 'API documentation for the GUESS game project.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False, # معمولاً True بهتر است مگر اینکه بخواهید schema جداگانه سرویس داده شود
+    # سایر تنظیمات را می‌توانید در مستندات drf-spectacular پیدا کنید
+}
 LANGUAGE_CODE = 'en-us'
 
 TIME_ZONE = 'UTC'
@@ -128,6 +158,7 @@ STATIC_URL = 'static/'
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
+CORS_ALLOWED_ORIGINS = ["http://localhost:5173"]
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CORS_ALLOWED_ALL_ORIGINS = True

@@ -83,8 +83,8 @@ class SignupSerializer(serializers.ModelSerializer):
             password=validated_data['password'],
             first_name=validated_data.get('first_name', ''),
             last_name=validated_data.get('last_name', ''),
-            xp=0,
-            coins=0
+            xp=0,  # مقدار پیش‌فرض xp
+            coins=10  # <--- تغییر: تخصیص 10 سکه اولیه به کاربر جدید
         )
         return user
 
@@ -131,32 +131,67 @@ class GameSerializer(serializers.ModelSerializer):
 class GameStateSerializer(serializers.ModelSerializer):
     word = serializers.SerializerMethodField()
     current_player = serializers.SerializerMethodField()
+    game_status = serializers.CharField(source='game.status', read_only=True) # <--- این خط اضافه شود
+    player1 = serializers.CharField(source='game.player1.username', read_only=True, allow_null=True) # اضافه شده برای دسترسی به نام بازیکنان
+    player2 = serializers.CharField(source='game.player2.username', read_only=True, allow_null=True) # اضافه شده برای دسترسی به نام بازیکنان
+    winner = serializers.CharField(source='game.winner.username', read_only=True, allow_null=True) # اضافه شده برای دسترسی به نام برنده
+
 
     class Meta:
         model = GameState
         fields = [
             'game', 'word', 'guessed_letters', 'revealed_letters', 'hints_used',
             'player1_score', 'player2_score', 'player1_time', 'player2_time',
-            'current_player', 'paused_at', 'last_turn_time'
+            'current_player', 'paused_at', 'last_turn_time',
+            'game_status', # <--- اضافه کردن فیلد جدید
+            'player1', 'player2', 'winner' # <--- اضافه کردن فیلدهای جدید
         ]
         extra_kwargs = {
             'game': {'read_only': True},
         }
+    # ... (بقیه متدهای سریالایزر)
 
-    def get_word(self, obj):
-        word = obj.word.text
-        result = ['_'] * len(word)
-        # نمایش حروف درست حدس‌زده‌شده
-        for guess in obj.guessed_letters:
-            if guess['correct']:
-                result[guess['position']] = guess['letter']
-        # نمایش حروف نمایش‌داده‌شده
-        for letter, info in obj.revealed_letters.items():
-            result[info['position']] = letter
-        return ' '.join(result)  # مثلاً "_ A _ E" برای "CAKE"
+    def get_word(self, obj: GameState) -> str:  # obj یک نمونه از GameState است
+        if not obj.word:  # اگر به هر دلیلی کلمه وجود نداشته باشد
+            return ""
 
-    def get_current_player(self, obj):
+        word_text = obj.word.text.upper()  # یا .lower() بسته به استاندارد شما
+        result = ['_'] * len(word_text)
+
+        # نمایش تمام حروفی که 'correct' هستند (شامل حدس‌های صحیح بازیکن و حروف آشکار شده توسط API)
+        # با فرض اینکه guessed_letters شامل دیکشنری‌هایی با کلیدهای 'letter', 'position', 'correct' است
+        # و حروف آشکار شده توسط API هم با 'correct': True و یک فلگ اضافی مانند 'is_revealed_by_api': True در آن ذخیره می‌شوند.
+        if isinstance(obj.guessed_letters, list):  # اطمینان از اینکه guessed_letters یک لیست است
+            for guess in obj.guessed_letters:
+                if isinstance(guess, dict) and guess.get('correct') and 'position' in guess and 'letter' in guess:
+                    try:
+                        position = int(guess['position'])
+                        if 0 <= position < len(result):
+                            result[position] = str(guess['letter']).upper()  # یا .lower()
+                    except (ValueError, TypeError):
+                        # نادیده گرفتن حدس‌های با فرمت اشتباه در لیست
+                        pass
+
+                        # حلقه قبلی که باعث خطا می‌شد حذف شده است، چون منطق آن با ساختار فعلی revealed_letters سازگار نبود.
+        # اگر revealed_letters ساختار خاصی دارد که می‌خواهید جداگانه پردازش کنید، باید اینجا پیاده‌سازی شود.
+        # مثال: اگر revealed_letters یک دیکشنری با user_id به عنوان کلید و لیستی از حروف آشکار شده به عنوان مقدار باشد:
+        # for user_id, revealed_list_for_user in obj.revealed_letters.items():
+        #     if isinstance(revealed_list_for_user, list):
+        #         for item in revealed_list_for_user: # item می‌تواند حرف یا دیکشنری {'letter': 'A', 'position': 0} باشد
+        #             if isinstance(item, dict) and 'letter' in item and 'position' in item:
+        #                 try:
+        #                     pos = int(item['position'])
+        #                     if 0 <= pos < len(result):
+        #                         result[pos] = str(item['letter']).upper()
+        #                 except (ValueError, TypeError):
+        #                     pass
+        #             # اگر item فقط خود حرف است، این منطق کار نخواهد کرد چون position را نداریم.
+
+        return ' '.join(result)
+
+    def get_current_player(self, obj: GameState):
         return obj.current_player.username if obj.current_player else None
+
 
     def validate_hints_used(self, value):
         for user_id, hints in value.items():

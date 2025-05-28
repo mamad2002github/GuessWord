@@ -4,30 +4,67 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="3ca5715d-a47a-4ae2-a0f8-34d71d726e3a" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/GUESS.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/dataSources.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/GUESS/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/GUESS/asgi.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/GUESS/settings.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/GUESS/urls.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/GUESS/wsgi.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/manage.py" afterDir="false" />
+    <list default="true" id="3ca5715d-a47a-4ae2-a0f8-34d71d726e3a" name="Changes" comment="create game app">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/GUESS/settings.py" beforeDir="false" afterPath="$PROJECT_DIR$/GUESS/settings.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/GUESS/urls.py" beforeDir="false" afterPath="$PROJECT_DIR$/GUESS/urls.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/db.sqlite3" beforeDir="false" afterPath="$PROJECT_DIR$/db.sqlite3" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/eslint.config.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/eslint.config.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/index.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/public/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/public/index.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/App.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/App.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/App.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/App.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/Game.jsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/JoinGame.jsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/Login.jsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/NewGame.jsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/PausedGames.jsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/Profile.jsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/config.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/config.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/index.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/index.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/main.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/main.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/styles.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/styles.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/vite.config.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/vite.config.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/consumers.py" beforeDir="false" afterPath="$PROJECT_DIR$/game/consumers.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/game/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/serializers.py" beforeDir="false" afterPath="$PROJECT_DIR$/game/serializers.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/game/views.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/requierments.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requierments.txt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
+  <component name="DjangoConsoleOptions" custom-start-script="import sys; print('Python %s on %s' % (sys.version, sys.platform))&#10;import django; print('Django %s' % django.get_version())&#10;sys.path.extend([WORKING_DIR_AND_PYTHON_PATHS])&#10;if 'setup' in dir(django): django.setup()&#10;import django_manage_shell; django_manage_shell.run(PROJECT_ROOT)">
+    <option name="myCustomStartScript" value="import sys; print('Python %s on %s' % (sys.version, sys.platform))&#10;import django; print('Django %s' % django.get_version())&#10;sys.path.extend([WORKING_DIR_AND_PYTHON_PATHS])&#10;if 'setup' in dir(django): django.setup()&#10;import django_manage_shell; django_manage_shell.run(PROJECT_ROOT)" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="JSX File" />
+      </list>
+    </option>
+  </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;mamad2002github&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/mamad2002github/GuessWord.git&quot;,
+    &quot;accountId&quot;: &quot;95303e24-2e8e-440b-b081-ea82986943a9&quot;
+  }
+}</component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 4
 }</component>
@@ -42,7 +79,7 @@
     &quot;RunOnceActivity.OpenDjangoStructureViewOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
     &quot;last_opened_file_path&quot;: &quot;C:/Users/mmd/PycharmProjects/GUESS/game&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
     &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
@@ -102,11 +139,40 @@
       <updated>1747988174839</updated>
       <workItem from="1747988175812" duration="6444000" />
       <workItem from="1748111023720" duration="4134000" />
-      <workItem from="1748159336434" duration="1422000" />
+      <workItem from="1748159336434" duration="2773000" />
+      <workItem from="1748191259713" duration="10360000" />
+      <workItem from="1748244780387" duration="9695000" />
+      <workItem from="1748260456078" duration="4968000" />
+      <workItem from="1748344727663" duration="1567000" />
+      <workItem from="1748368102054" duration="253000" />
+      <workItem from="1748368818372" duration="6451000" />
+      <workItem from="1748457985737" duration="4154000" />
     </task>
+    <task id="LOCAL-00001" summary="first commit">
+      <option name="closed" value="true" />
+      <created>1748160916137</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1748160916137</updated>
+    </task>
+    <task id="LOCAL-00002" summary="create game app">
+      <option name="closed" value="true" />
+      <created>1748160962803</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1748160962803</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="first commit" />
+    <MESSAGE value="create game app" />
+    <option name="LAST_COMMIT_MESSAGE" value="create game app" />
   </component>
 </project>
